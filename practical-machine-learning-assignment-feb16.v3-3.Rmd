@@ -1,0 +1,64 @@
+---
+title: "Practical Machine Learning Assignment"
+author: "by Pak Mei Yuet"
+
+---
+
+OVERVIEW
+---
+The goal is to predict the manner in which people did the exercise. When people exercise, they regularly quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+1. Load packages.
+
+I made use of caret and randomForest. Set a seed value for reproducibility.
+```{r, echo=TRUE}
+library (caret)
+library(doParallel)
+library(randomForest)
+set.seed(12345)
+```
+
+2. Load data. 
+ Replace values containing"#DIV/0!" with NA value.
+```{r, echo=TRUE}
+train_data <- read.csv("pml-training.csv", na.strings=c("#DIV/0!") )
+test_data <- read.csv("pml-testing.csv", na.strings=c("#DIV/0!") )
+dim(train_data)
+dim(test_data)
+names(train_data)
+```
+
+3. Make columns 8 and thereafter to numeric. Some columns are blanks which do not contribute well to predictions.Feature set that includes complete columns is adopted. User name, timestamps and windows have also been removed.Then build model data from feature set. 
+Then, build 5 random forests with 150 trees each using parallel processing to speed the processing.  
+Subsequently, provide error reports for both training and test data.
+
+```{r, echo=TRUE}
+for(i in c(8:ncol(train_data)-1)) {train_data[,i] = suppressWarnings(as.numeric(as.character(train_data[,i])))}
+
+for(i in c(8:ncol(test_data)-1)) {test_data[,i] = suppressWarnings(as.numeric(as.character(test_data[,i])))}
+
+feature_set <- colnames(train_data[colSums(is.na(train_data)) == 0])[-(1:7)]
+model_data <- train_data[feature_set]
+feature_set 
+tmp <- createDataPartition(y=model_data$classe, p=0.75, list=FALSE )
+training <- model_data[tmp,]
+testing <- model_data[-tmp,]
+
+registerDoParallel()
+x <- training[-ncol(training)]
+y <- training$classe
+
+rf <- foreach(ntree=rep(150, 6), .combine=randomForest::combine, .packages='randomForest') %dopar% {randomForest(x, y, ntree=ntree)}
+
+predictions1 <- predict(rf, newdata=training)
+confusionMatrix(predictions1,training$classe)
+
+
+predictions2 <- predict(rf, newdata=testing)
+confusionMatrix(predictions2,testing$classe)
+```
+
+CONCLUSION
+
+It can be surmised that this model is very accurate as reflected from the confusion matrix. Experiments done with PCA and other models did not yield as good in terms of accuracy. 
+
